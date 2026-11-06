@@ -1,6 +1,6 @@
 {
   "name": "@gopaljigaur/ancli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Apple Notes CLI for macOS: list, search, read and write notes from the command line",
   "main": "lib/jxa-runner.js",
   "bin": {
