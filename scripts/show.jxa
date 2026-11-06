@@ -1,0 +1,5 @@
+// show.jxa: one note with its HTML body, or null for a locked one.
+
+main(function () {
+  return { ok: true, note: detail(findNote(__args.id)) };
+});

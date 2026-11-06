@@ -1,0 +1,169 @@
+// Shared by every script: lookups by id or name, and how a note is serialised.
+// jxa-runner prepends this file to the named script.
+
+var Notes = Application('Notes');
+
+// Notes keeps deleted notes here for 30 days. It has no flag for it, only the name.
+var TRASH = 'Recently Deleted';
+
+function fail(code, message, extra) {
+  var error = { code: code, message: message };
+  for (var k in extra || {}) error[k] = extra[k];
+  return JSON.stringify({ ok: false, error: error });
+}
+
+function Failure(code, message, extra) {
+  this.code = code;
+  this.message = message;
+  this.extra = extra;
+}
+
+// Runs body(), turning a thrown Failure into the error JSON. Anything else
+// propagates so the runner can read Apple event errors from stderr.
+function main(body) {
+  try {
+    return JSON.stringify(body());
+  } catch (e) {
+    if (e instanceof Failure) return fail(e.code, e.message, e.extra);
+    throw e;
+  }
+}
+
+// x-coredata://<store>/ICNote/p181 shortens to p181.
+function shortId(url) {
+  return String(url).split('/').pop();
+}
+
+function iso(d) {
+  return d ? d.toISOString() : null;
+}
+
+// Account of a folder: walk containers up past any parent folders.
+function accountOf(folder) {
+  var c = folder.container();
+  for (var i = 0; i < 20; i++) {
+    var id = c.id();
+    if (/Account\/p\d+$/.test(id)) return c.name();
+    c = c.container();
+  }
+  return '';
+}
+
+// A note or folder by full Core Data id or by its short tail. Returns the full id.
+function resolveId(ref, ids, kind) {
+  ref = String(ref);
+  if (ref.indexOf('x-coredata://') === 0) {
+    if (ids.indexOf(ref) === -1) throw new Failure(kind.toUpperCase() + '_NOT_FOUND', 'No ' + kind + ' with id ' + ref);
+    return ref;
+  }
+  var hits = ids.filter(function (id) { return shortId(id) === ref; });
+  if (hits.length === 1) return hits[0];
+  if (hits.length > 1)
+    throw new Failure('AMBIGUOUS_ID', 'Several ' + kind + 's end in ' + ref + '; use the full id', { candidates: hits });
+  return null;
+}
+
+function findNote(ref) {
+  var id = resolveId(ref, Notes.notes.id(), 'note');
+  if (!id) throw new Failure('NOTE_NOT_FOUND', 'No note with id ' + ref);
+  return Notes.notes.byId(id);
+}
+
+// A folder by id, or by name (case-insensitive) when the name is unique.
+function findFolder(ref) {
+  var ids = Notes.folders.id();
+  var id = resolveId(ref, ids, 'folder');
+  if (id) return Notes.folders.byId(id);
+  var names = Notes.folders.name();
+  var want = String(ref).toLowerCase();
+  var hits = [];
+  for (var i = 0; i < names.length; i++) if (names[i].toLowerCase() === want) hits.push(i);
+  // "iCloud/Notes" picks a folder by account when the name alone is shared.
+  var slash = want.indexOf('/');
+  if (hits.length !== 1 && slash > 0) {
+    var acct = want.slice(0, slash);
+    var leaf = want.slice(slash + 1);
+    hits = [];
+    for (var j = 0; j < names.length; j++)
+      if (names[j].toLowerCase() === leaf && accountOf(Notes.folders.byId(ids[j])).toLowerCase() === acct) hits.push(j);
+  }
+  if (hits.length === 1) return Notes.folders.byId(ids[hits[0]]);
+  if (!hits.length) throw new Failure('FOLDER_NOT_FOUND', 'No folder named ' + ref);
+  throw new Failure('AMBIGUOUS_FOLDER', 'Several folders are named ' + ref + '; use Account/Folder or an id', {
+    candidates: hits.map(function (i) {
+      var f = Notes.folders.byId(ids[i]);
+      return { id: shortId(ids[i]), url: ids[i], name: names[i], account: accountOf(f) };
+    })
+  });
+}
+
+function folderInfo(f) {
+  var id = f.id();
+  return { id: shortId(id), url: id, name: f.name(), account: accountOf(f) };
+}
+
+// Summaries for a set of notes from bulk property reads: one Apple event per
+// property, never a body.
+function summaries(collection, folderName) {
+  var ids = collection.id();
+  if (!ids.length) return [];
+  var names = collection.name();
+  var modified = collection.modificationDate();
+  var created = collection.creationDate();
+  var locked = collection.passwordProtected();
+  var out = [];
+  for (var i = 0; i < ids.length; i++) {
+    out.push({
+      id: shortId(ids[i]),
+      url: ids[i],
+      title: names[i],
+      folder: folderName,
+      created: iso(created[i]),
+      modified: iso(modified[i]),
+      locked: !!locked[i]
+    });
+  }
+  return out;
+}
+
+// Summaries from a folder, or from every folder but the trash. pick(f) narrows
+// a folder's notes, for a search.
+function collect(folderRef, pick) {
+  pick = pick || function (f) { return f.notes; };
+  var folders = folderRef
+    ? [findFolder(folderRef)]
+    : Notes.folders().filter(function (f) { return f.name() !== TRASH; });
+  var out = [];
+  folders.forEach(function (f) {
+    out = out.concat(summaries(pick(f), f.name()));
+  });
+  return out;
+}
+
+function byRecent(a, b) {
+  return a.modified < b.modified ? 1 : a.modified > b.modified ? -1 : 0;
+}
+
+// One note in full. A locked note keeps its body to itself.
+function detail(n) {
+  var id = n.id();
+  var f = n.container();
+  var s = {
+    id: shortId(id),
+    url: id,
+    title: n.name(),
+    folder: f.name(),
+    account: accountOf(f),
+    created: iso(n.creationDate()),
+    modified: iso(n.modificationDate()),
+    locked: !!n.passwordProtected(),
+    shared: !!n.shared()
+  };
+  if (s.locked) {
+    s.body = null;
+  } else {
+    s.body = n.body();
+    s.attachments = n.attachments.length;
+  }
+  return s;
+}

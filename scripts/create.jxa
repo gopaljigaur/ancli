@@ -1,0 +1,7 @@
+// create.jxa: a note from __args.html in __args.folder, or the default folder.
+
+main(function () {
+  var folder = __args.folder ? findFolder(__args.folder) : Notes.defaultAccount().defaultFolder();
+  var n = Notes.make({ new: 'note', at: folder, withProperties: { body: __args.html } });
+  return { ok: true, note: detail(n) };
+});

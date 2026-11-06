@@ -1,0 +1,10 @@
+// setup.jxa: trigger the Automation prompt for Notes and say what it can see.
+
+main(function () {
+  return {
+    ok: true,
+    message: 'Notes access enabled',
+    accounts: Notes.accounts.name(),
+    count: Notes.notes.id().length
+  };
+});

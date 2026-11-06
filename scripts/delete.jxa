@@ -1,0 +1,12 @@
+// delete.jxa: delete a note. Notes moves it to Recently Deleted; deleting it
+// from there removes it for good.
+
+main(function () {
+  var n = findNote(__args.id);
+  var id = n.id();
+  var f = n.container();
+  var info = { id: shortId(id), url: id, title: n.name(), folder: f.name(), account: accountOf(f) };
+  var permanent = info.folder === TRASH;
+  Notes.delete(n);
+  return { ok: true, deleted: info, permanent: permanent };
+});

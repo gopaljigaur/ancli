@@ -1,0 +1,10 @@
+// folders.jxa: every folder with its account and how many notes it holds.
+
+main(function () {
+  var folders = Notes.folders().map(function (f) {
+    var info = folderInfo(f);
+    info.count = f.notes.length;
+    return info;
+  });
+  return { ok: true, count: folders.length, folders: folders };
+});

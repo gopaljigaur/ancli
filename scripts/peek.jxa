@@ -1,0 +1,7 @@
+// peek.jxa: title and folder of one note, without its body.
+
+main(function () {
+  var n = findNote(__args.id);
+  var f = n.container();
+  return { ok: true, note: { id: shortId(n.id()), url: n.id(), title: n.name(), folder: f.name(), locked: !!n.passwordProtected() } };
+});

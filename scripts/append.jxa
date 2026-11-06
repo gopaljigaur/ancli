@@ -1,0 +1,12 @@
+// append.jxa: add __args.html to the end of a note.
+// Rewriting the body drops attachments, so a note with any is refused.
+
+main(function () {
+  var n = findNote(__args.id);
+  if (n.passwordProtected()) throw new Failure('NOTE_LOCKED', 'Note ' + __args.id + ' is locked; unlock it in Notes first');
+  var count = n.attachments.length;
+  if (count)
+    throw new Failure('HAS_ATTACHMENTS', 'Note ' + __args.id + ' has ' + count + ' attachment(s), which appending through scripting would drop');
+  n.body = n.body() + __args.html;
+  return { ok: true, note: detail(n) };
+});

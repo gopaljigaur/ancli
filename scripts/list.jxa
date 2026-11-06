@@ -1,0 +1,10 @@
+// list.jxa: notes most recent first, in __args.folder or everywhere but the trash.
+// Titles and dates only; bodies stay in Notes.
+
+main(function () {
+  var notes = collect(__args.folder);
+  notes.sort(byRecent);
+  var total = notes.length;
+  notes = notes.slice(0, __args.limit || 20);
+  return { ok: true, count: notes.length, total: total, notes: notes };
+});

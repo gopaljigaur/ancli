@@ -1,0 +1,22 @@
+// search.jxa: notes whose title or text contains __args.query, case-insensitive.
+// Notes does the matching itself, so only the hits cross the Apple event bridge.
+
+main(function () {
+  var q = String(__args.query);
+  var notes = collect(__args.folder, function (f) {
+    return f.notes.whose({ _or: [{ name: { _contains: q } }, { plaintext: { _contains: q } }] });
+  });
+  notes.sort(byRecent);
+  var total = notes.length;
+  notes = notes.slice(0, __args.limit || 20);
+  var lower = q.toLowerCase();
+  notes.forEach(function (n) {
+    if (n.locked) return;
+    var text = Notes.notes.byId(n.url).plaintext().replace(/\s+/g, ' ');
+    var at = text.toLowerCase().indexOf(lower);
+    if (at === -1) return;
+    var start = Math.max(0, at - 40);
+    n.snippet = (start ? '...' : '') + text.slice(start, at + q.length + 60).trim() + (at + q.length + 60 < text.length ? '...' : '');
+  });
+  return { ok: true, count: notes.length, total: total, notes: notes };
+});

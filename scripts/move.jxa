@@ -1,0 +1,9 @@
+// move.jxa: put a note in another folder.
+
+main(function () {
+  var n = findNote(__args.id);
+  var f = findFolder(__args.folder);
+  var id = n.id();
+  Notes.move(n, { to: f });
+  return { ok: true, note: detail(Notes.notes.byId(id)) };
+});
